@@ -1,10 +1,12 @@
 {
   "name": "kanban-z",
-  "version": "2.0.52",
+  "version": "2.0.53",
   "description": "Kanban Z: a maintained fork of the Obsidian Kanban plugin",
   "main": "main.js",
   "scripts": {
     "typecheck": "tsc --noemit",
+    "test": "node test/run-tests.mjs",
+    "dev-install": "node scripts/install-dev.mjs",
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
     "lint": "eslint ./src/**/*.{ts,tsx}",
@@ -35,13 +37,15 @@
     "eslint": "^8.56.0",
     "eslint-plugin-react": "^7.33.2",
     "magic-string": "^0.30.10",
+    "moment": "2.29.4",
     "obsidian": "^1.5.7-1",
     "obsidian-dataview": "^0.5.66",
     "obsidian-plugin-cli": "^0.9.0",
     "prettier": "^3.1.1",
     "replace": "^1.2.2",
     "tslib": "^2.6.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "yaml": "^1.10.2"
   },
   "dependencies": {
     "@tanstack/match-sorter-utils": "^8.15.1",

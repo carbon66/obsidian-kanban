@@ -19,6 +19,17 @@ yarn install
 yarn build
 ```
 
+### Test
+
+```bash
+yarn test                     # parser round-trip, locale, search, and Tasks status tests
+KANBAN_FIXTURES_DIR="<folder with boards>" yarn test   # also round-trip your own boards (read-only)
+yarn dev-install              # copy the build into ./test-vault (gitignored, seeded with sample boards)
+yarn dev-install "<vault>"    # copy the build into another vault
+```
+
+CI runs typecheck, tests, and build on every push and pull request.
+
 ---
 
 *Original README follows.*
