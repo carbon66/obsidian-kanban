@@ -208,7 +208,7 @@ export async function refreshTasksStatusSettings() {
   }
 }
 
-function getTasksStatusSettings() {
+export function getTasksStatusSettings() {
   return getTasksPluginSettings()?.statusSettings ?? cachedTasksStatusSettings;
 }
 

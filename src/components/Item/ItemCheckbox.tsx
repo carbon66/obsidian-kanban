@@ -97,7 +97,10 @@ export const ItemCheckbox = memo(function ItemCheckbox({
           setIsCtrlHoveringCheckbox(false);
         }
       }}
-      className={c('item-prefix-button-wrapper')}
+      className={`${c('item-prefix-button-wrapper')} task-list-item${
+        item.data.checked ? ' is-checked' : ''
+      }`}
+      data-task={item.data.checkChar}
     >
       {shouldShowCheckbox && !isCtrlHoveringCheckbox && (
         <input
