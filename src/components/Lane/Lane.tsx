@@ -65,6 +65,7 @@ function DraggableLaneRaw({
   const bindHandle = useDragHandle(measureRef, dragHandleRef);
 
   const shouldMarkItemsComplete = !!lane.data.shouldMarkItemsComplete;
+  const laneStatus = shouldMarkItemsComplete ? undefined : lane.data.autoStatus;
   const isCompactPrepend = insertionMethod === 'prepend-compact';
   const shouldPrepend = isCompactPrepend || insertionMethod === 'prepend';
 
@@ -88,10 +89,10 @@ function DraggableLaneRaw({
             data: {
               checked: {
                 // Mark the item complete if we're moving into a completed lane
-                $set: shouldMarkItemsComplete,
+                $set: shouldMarkItemsComplete || (!!laneStatus && laneStatus !== ' '),
               },
               checkChar: {
-                $set: shouldMarkItemsComplete ? getTaskStatusDone() : ' ',
+                $set: shouldMarkItemsComplete ? getTaskStatusDone() : laneStatus || ' ',
               },
             },
           })

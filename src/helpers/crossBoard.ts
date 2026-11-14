@@ -7,6 +7,7 @@ import { itemToMd } from 'src/parsers/formats/list';
 
 import { Board, Item } from '../components/types';
 import { BoardModifiers } from './boardModifiers';
+import { laneStatusRegEx, setItemMdStatus } from './itemStatus';
 
 export interface BoardLaneTarget {
   file: TFile;
@@ -88,6 +89,16 @@ export function insertItemMdIntoLane(
   }
 
   const newLines = itemMd.replace(/\r\n/g, '\n').split('\n');
+
+  // Status lists (`**Status: ?**`) apply their status to cards moved in.
+  for (let i = headingLine + 1; i < end; i++) {
+    const marker = lines[i].trim().match(/^\*\*(.+)\*\*$/);
+    const status = marker?.[1].match(laneStatusRegEx);
+    if (status) {
+      newLines[0] = setItemMdStatus(newLines[0], status[1]);
+      break;
+    }
+  }
 
   if (insertAt === headingLine + 1) {
     // Empty lane: keep one blank line between heading and first card.

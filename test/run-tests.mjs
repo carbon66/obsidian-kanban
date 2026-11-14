@@ -597,3 +597,83 @@ describe('Complete lanes keep the previous status (F3)', () => {
     assert.equal(out.data.checkChar, ' ');
   });
 });
+
+describe('status lists: cards moved in get the list status', () => {
+  const fixture = fs.readFileSync(
+    path.join(root, 'test', 'fixtures', 'status-lane-board.md'),
+    'utf8'
+  );
+  const load = () => {
+    const sm = h.createStateManager();
+    return { sm, board: h.mdToBoard(sm, fixture) };
+  };
+  const move = (sm, board, from, to, card) =>
+    h.maybeCompleteForMove(sm, board, from, sm, board, to, card).next;
+
+  test('the **Status: ?** marker is read and written back', () => {
+    const { board } = load();
+    assert.equal(board.children[1].data.autoStatus, '?');
+    assert.equal(board.children[2].data.autoStatus, '?');
+    assert.equal(board.children[0].data.autoStatus, undefined);
+    assert.ok(
+      h.boardToMd(board).includes('## 🔍 Verify & Follow-Up\n\n**Status: ?**\n- [?] Confirm')
+    );
+  });
+
+  test('a [ ] card moved into Follow-Up becomes [?], and [ ] again when moved back', () => {
+    const { sm, board } = load();
+    const card = board.children[0].children[0];
+    const inFollowUp = move(sm, board, [0, 0], [1, 0], card);
+    assert.equal(inFollowUp.data.checkChar, '?');
+    assert.equal(inFollowUp.data.titleRaw, card.data.titleRaw);
+
+    const back = move(sm, board, [1, 0], [0, 0], inFollowUp);
+    assert.equal(back.data.checkChar, ' ');
+  });
+
+  test('a [/] card moved into Follow-Up and back returns as [/]', () => {
+    const { sm, board } = load();
+    const card = board.children[0].children[1];
+    const inFollowUp = move(sm, board, [0, 1], [1, 0], card);
+    assert.equal(inFollowUp.data.checkChar, '?');
+    assert.equal(move(sm, board, [1, 0], [0, 0], inFollowUp).data.checkChar, '/');
+  });
+
+  test('a status changed by hand inside Follow-Up is kept when the card leaves', () => {
+    const { sm, board } = load();
+    const [changed] = h.setItemStatus(sm, board.children[1].children[0], '!');
+    assert.equal(move(sm, board, [1, 0], [0, 0], changed).data.checkChar, '!');
+  });
+
+  test('reordering within Follow-Up does not touch the status', () => {
+    const { sm, board } = load();
+    const [changed] = h.setItemStatus(sm, board.children[1].children[0], '/');
+    assert.equal(move(sm, board, [1, 0], [1, 1], changed).data.checkChar, '/');
+  });
+
+  test('Follow-Up -> Closed -> Follow-Up ends as [?]', () => {
+    const { sm, board } = load();
+    const card = board.children[1].children[0];
+    const closed = move(sm, board, [1, 0], [3, 0], card);
+    assert.equal(closed.data.checkChar, 'x');
+    assert.equal(move(sm, board, [3, 0], [1, 0], closed).data.checkChar, '?');
+  });
+
+  test('a done card moved into Follow-Up becomes [?] without its done date', () => {
+    const { sm, board } = load();
+    const done = board.children[3].children[0];
+    const out = move(sm, board, [3, 0], [1, 0], done);
+    assert.equal(out.data.checkChar, '?');
+    assert.equal(out.data.titleRaw, 'Done card');
+  });
+
+  test('Move to board into a status list applies the status', () => {
+    const out = h.insertItemMdIntoLane(fixture, 2, 'Empty Follow-Up', '- [ ] From another board');
+    const board = h.mdToBoard(h.createStateManager(), out);
+    assert.deepEqual(
+      board.children[2].children.map((i) => `[${i.data.checkChar}] ${i.data.titleRaw}`),
+      ['[?] From another board']
+    );
+    assert.equal(board.children[2].data.autoStatus, '?');
+  });
+});

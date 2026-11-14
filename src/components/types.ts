@@ -15,6 +15,8 @@ export enum LaneSort {
 
 export interface LaneData {
   shouldMarkItemsComplete?: boolean;
+  /** Status applied to cards moved into this list (e.g. '?'). Kanban Z. */
+  autoStatus?: string;
   title: string;
   maxItems?: number;
   dom?: HTMLDivElement;

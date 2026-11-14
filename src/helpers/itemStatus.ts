@@ -123,6 +123,74 @@ export function recallStatusBeforeComplete(filePath: string, item: Item): string
   return statusBeforeComplete.get(statusKey(filePath, item.data.titleRaw));
 }
 
+// ---------------------------------------------------------------------------
+// Status lanes: a list can set a status on cards moved into it (e.g. a
+// "Follow-Up" list marks cards [?]). Stored in the board file as a
+// `**Status: ?**` line under the list heading, like `**Complete**`.
+// ---------------------------------------------------------------------------
+export const laneStatusRegEx = /^Status: (\S)$/;
+
+export function laneStatusMarker(symbol: string) {
+  return `**Status: ${symbol}**`;
+}
+
+const statusBeforeLane = new Map<string, string>();
+
+function rememberStatusBeforeLane(filePath: string, item: Item, doneSymbol: string) {
+  const key = statusKey(filePath, item.data.titleRaw);
+  const char = item.data.checkChar;
+  if (char === ' ' || char === doneSymbol) statusBeforeLane.delete(key);
+  else statusBeforeLane.set(key, char);
+}
+
+/**
+ * Apply status-lane rules to a card moving between lists:
+ * - entering a status list sets that status (remembering the previous one)
+ * - leaving a status list for a plain list restores the previous status, but
+ *   only if the card still has the list's status (manual changes are kept)
+ * Reordering within the same list, and Complete lists, are left alone.
+ */
+export function applyLaneStatusForMove(
+  stateManager: StateManager,
+  sourceFilePath: string,
+  sourceLane: { data?: { autoStatus?: string; shouldMarkItemsComplete?: boolean } } | undefined,
+  destinationFilePath: string,
+  destinationLane:
+    | { data?: { autoStatus?: string; shouldMarkItemsComplete?: boolean } }
+    | undefined,
+  isSameLane: boolean,
+  item: Item
+): Item {
+  if (!item || isSameLane || destinationLane?.data?.shouldMarkItemsComplete) return item;
+
+  const doneSymbol = getTaskStatusDone();
+  const destinationStatus = destinationLane?.data?.autoStatus;
+  const sourceStatus = sourceLane?.data?.shouldMarkItemsComplete
+    ? undefined
+    : sourceLane?.data?.autoStatus;
+
+  if (destinationStatus) {
+    if (item.data.checkChar === destinationStatus) return item;
+    rememberStatusBeforeLane(destinationFilePath, item, doneSymbol);
+    return setItemStatus(stateManager, item, destinationStatus)[0];
+  }
+
+  if (sourceStatus && item.data.checkChar === sourceStatus) {
+    const key = statusKey(sourceFilePath, item.data.titleRaw);
+    const previous = statusBeforeLane.get(key) ?? ' ';
+    return setItemStatus(stateManager, item, previous)[0];
+  }
+
+  return item;
+}
+
+/**
+ * Rewrite the checkbox of a card's markdown (`- [c] ...`) to a new status.
+ */
+export function setItemMdStatus(itemMd: string, symbol: string) {
+  return itemMd.replace(/^- \[.\]/, `- [${symbol}]`);
+}
+
 export function getCurrentStatusOptions() {
   return getStatusOptions(getTasksStatusSettings(), getTaskStatusDone());
 }

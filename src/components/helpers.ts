@@ -5,7 +5,12 @@ import { StateUpdater, useMemo } from 'preact/hooks';
 import { StateManager } from 'src/StateManager';
 import { Path } from 'src/dnd/types';
 import { getEntityFromPath } from 'src/dnd/util/data';
-import { recallStatusBeforeComplete, rememberStatusBeforeComplete } from 'src/helpers/itemStatus';
+import {
+  applyLaneStatusForMove,
+  recallStatusBeforeComplete,
+  rememberStatusBeforeComplete,
+  stripDoneDate,
+} from 'src/helpers/itemStatus';
 import {
   InlineField,
   getTaskStatusDone,
@@ -35,6 +40,46 @@ export function generateInstanceId(len: number = 9): string {
 }
 
 export function maybeCompleteForMove(
+  sourceStateManager: StateManager,
+  sourceBoard: Board,
+  sourcePath: Path,
+  destinationStateManager: StateManager,
+  destinationBoard: Board,
+  destinationPath: Path,
+  item: Item
+): { next: Item; replacement?: Item } {
+  const result = completeForMove(
+    sourceStateManager,
+    sourceBoard,
+    sourcePath,
+    destinationStateManager,
+    destinationBoard,
+    destinationPath,
+    item
+  );
+
+  const sourceParent = getEntityFromPath(sourceBoard, sourcePath.slice(0, -1));
+  const destinationParent = getEntityFromPath(destinationBoard, destinationPath.slice(0, -1));
+  const isSameLane =
+    sourceStateManager.file === destinationStateManager.file &&
+    sourcePath.length === destinationPath.length &&
+    sourcePath.slice(0, -1).every((segment, i) => segment === destinationPath[i]);
+
+  return {
+    ...result,
+    next: applyLaneStatusForMove(
+      destinationStateManager,
+      sourceStateManager.file.path,
+      sourceParent,
+      destinationStateManager.file.path,
+      destinationParent,
+      isSameLane,
+      result.next
+    ),
+  };
+}
+
+function completeForMove(
   sourceStateManager: StateManager,
   sourceBoard: Board,
   sourcePath: Path,
@@ -94,18 +139,23 @@ export function maybeCompleteForMove(
   }
 
   // It's different, update it
+  const toggled = update(item, {
+    data: {
+      checked: {
+        $set: newShouldComplete,
+      },
+      checkChar: {
+        $set: newShouldComplete ? doneSymbol : ' ',
+      },
+    },
+  });
+
   return {
     next: restoreStatus(
-      update(item, {
-        data: {
-          checked: {
-            $set: newShouldComplete,
-          },
-          checkChar: {
-            $set: newShouldComplete ? doneSymbol : ' ',
-          },
-        },
-      })
+      // Without the Tasks plugin, also drop the done date when un-completing
+      !newShouldComplete && stripDoneDate(item.data.titleRaw) !== item.data.titleRaw
+        ? destinationStateManager.updateItemContent(toggled, stripDoneDate(item.data.titleRaw))
+        : toggled
     ),
   };
 }
