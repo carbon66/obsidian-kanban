@@ -2,7 +2,7 @@ import update from 'immutability-helper';
 import { Menu, Platform } from 'obsidian';
 import { Dispatch, StateUpdater, useContext, useEffect, useMemo, useState } from 'preact/hooks';
 import { Path } from 'src/dnd/types';
-import { getCurrentStatusOptions, setItemStatus } from 'src/helpers/itemStatus';
+import { getCurrentStatusOptions, withLaneStatus } from 'src/helpers/itemStatus';
 import { defaultSort } from 'src/helpers/util';
 import { t } from 'src/lang/helpers';
 import { getTaskStatusDone, lableToName } from 'src/parsers/helpers/inlineMetadata';
@@ -157,19 +157,7 @@ export function useSettingsMenu({ setEditState, path, lane }: UseSettingsMenuPar
     // Status list: cards moved or added here get this status (e.g. Follow-Up -> [?])
     const doneSymbol = getTaskStatusDone();
     const setLaneStatus = (symbol?: string) => {
-      const spec: any = symbol
-        ? {
-            data: { autoStatus: { $set: symbol }, shouldMarkItemsComplete: { $set: false } },
-            // Existing plain [ ] cards pick up the new status; other statuses are kept
-            children: {
-              $set: lane.children.map((card) =>
-                card.data.checkChar === ' ' ? setItemStatus(stateManager, card, symbol)[0] : card
-              ),
-            },
-          }
-        : { data: { $unset: ['autoStatus'] } };
-
-      boardModifiers.updateLane(path, update(lane, spec));
+      boardModifiers.updateLane(path, withLaneStatus(stateManager, lane, symbol));
     };
 
     const addLaneStatusOptions = (menu: Menu) => {

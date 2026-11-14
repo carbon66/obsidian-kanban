@@ -2,9 +2,15 @@
 // StateManager stand-in. Bundled by esbuild in test/run-tests.mjs.
 import { defaults as datePickerDefaults } from 'src/components/Editor/flatpickr/types/options';
 import { maybeCompleteForMove } from 'src/components/helpers';
+import { moveEntity } from 'src/dnd/util/data';
 import { getBoardModifiers } from 'src/helpers/boardModifiers';
 import { findItemPath, getLaneTitles, insertItemMdIntoLane } from 'src/helpers/crossBoard';
-import { getStatusOptions, setItemStatus, stripDoneDate } from 'src/helpers/itemStatus';
+import {
+  getStatusOptions,
+  setItemStatus,
+  stripDoneDate,
+  withLaneStatus,
+} from 'src/helpers/itemStatus';
 import { resolveLocale } from 'src/lang/helpers';
 import { ListFormat } from 'src/parsers/List';
 import { boardToMd, itemToMd } from 'src/parsers/formats/list';
@@ -97,4 +103,19 @@ export {
   stripDoneDate,
   maybeCompleteForMove,
   itemToMd,
+  withLaneStatus,
 };
+
+/** Same transform DragDropApp uses for a same-board drag. */
+export function dragItem(sm: any, dragPath: number[], dropPath: number[]) {
+  sm.setState((board: any) =>
+    moveEntity(
+      board,
+      dragPath,
+      dropPath,
+      (entity: any) => maybeCompleteForMove(sm, board, dragPath, sm, board, dropPath, entity).next,
+      (entity: any) =>
+        maybeCompleteForMove(sm, board, dragPath, sm, board, dropPath, entity).replacement
+    )
+  );
+}

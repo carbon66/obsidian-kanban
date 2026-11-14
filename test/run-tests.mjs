@@ -677,3 +677,63 @@ describe('status lists: cards moved in get the list status', () => {
     assert.equal(board.children[2].data.autoStatus, '?');
   });
 });
+
+describe('status lists end to end (menu + drag + save)', () => {
+  const plainBoard = [
+    '---',
+    '',
+    'kanban-plugin: board',
+    '',
+    '---',
+    '',
+    '## Delegated',
+    '',
+    '- [ ] Pump B faults',
+    '- [/] Shear bolts',
+    '',
+    '',
+    '',
+    '## 🔍 Verify & Follow-Up',
+    '',
+    '- [?] Envita volumes',
+    '- [ ] Blade bolts',
+    '',
+    '',
+    '',
+    '%% kanban:settings',
+    '```',
+    '{"kanban-plugin":"board"}',
+    '```',
+    '%%',
+  ].join('\n');
+
+  test('enabling the list status, then dragging a card in, marks it [?] and saves', () => {
+    const sm = h.createStateManager();
+    sm.state = h.mdToBoard(sm, plainBoard);
+    const mods = h.createBoardModifiers(sm);
+
+    // List menu -> Set status for cards in this list -> [?]
+    mods.updateLane([1], h.withLaneStatus(sm, sm.state.children[1], '?'));
+    assert.equal(sm.state.children[1].data.autoStatus, '?');
+    assert.deepEqual(
+      sm.state.children[1].children.map((i) => i.data.checkChar),
+      ['?', '?']
+    );
+
+    // Drag "Pump B faults" onto the Follow-Up list (drop into its card area)
+    h.dragItem(sm, [0, 0], [1, 2]);
+    const followUp = sm.state.children[1].children.map(
+      (i) => `[${i.data.checkChar}] ${i.data.titleRaw}`
+    );
+    assert.ok(followUp.includes('[?] Pump B faults'), followUp.join(' | '));
+
+    const saved = h.boardToMd(sm.state);
+    assert.ok(saved.includes('## 🔍 Verify & Follow-Up\n\n**Status: ?**\n'), saved);
+    assert.ok(saved.includes('- [?] Pump B faults'));
+
+    // Drag it back out: [ ] again
+    const idx = sm.state.children[1].children.findIndex((i) => i.data.titleRaw === 'Pump B faults');
+    h.dragItem(sm, [1, idx], [0, 0]);
+    assert.equal(sm.state.children[0].children[0].data.checkChar, ' ');
+  });
+});

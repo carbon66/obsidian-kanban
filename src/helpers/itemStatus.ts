@@ -1,6 +1,6 @@
 import update from 'immutability-helper';
 import { StateManager } from 'src/StateManager';
-import { Item } from 'src/components/types';
+import { Item, Lane } from 'src/components/types';
 import {
   getTaskStatusDone,
   getTaskStatusPreDone,
@@ -189,6 +189,23 @@ export function applyLaneStatusForMove(
  */
 export function setItemMdStatus(itemMd: string, symbol: string) {
   return itemMd.replace(/^- \[.\]/, `- [${symbol}]`);
+}
+
+/**
+ * Return a copy of a lane with its status-list setting changed. Enabling a
+ * status turns off Complete and converts existing plain [ ] cards.
+ */
+export function withLaneStatus(stateManager: StateManager, lane: Lane, symbol?: string): Lane {
+  if (!symbol) return update(lane, { data: { $unset: ['autoStatus'] } });
+
+  return update(lane, {
+    data: { autoStatus: { $set: symbol }, shouldMarkItemsComplete: { $set: false } },
+    children: {
+      $set: lane.children.map((card) =>
+        card.data.checkChar === ' ' ? setItemStatus(stateManager, card, symbol)[0] : card
+      ),
+    },
+  });
 }
 
 export function getCurrentStatusOptions() {
