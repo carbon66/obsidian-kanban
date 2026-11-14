@@ -10,6 +10,33 @@ export const defaultDateTrigger = '@';
 export const defaultTimeTrigger = '@@';
 export const defaultMetadataPosition = 'body';
 
+/**
+ * Choices.js attaches its document-level listeners (click, touchend, touchmove)
+ * to the main window's `document`. When Obsidian opens Settings in a separate
+ * window, clicks there never reach Choices, so dropdowns won't open (#1247).
+ * Mirror those listeners onto the select element's own document.
+ * Returns a cleanup function.
+ */
+export function bindChoicesToOwnerDocument(choices: any, el: HTMLElement): () => void {
+  const doc = el.ownerDocument;
+  if (!doc || doc === document || !choices) return () => {};
+
+  const root = doc.documentElement;
+  const { _onClick, _onTouchEnd, _onTouchMove } = choices;
+
+  if (typeof _onTouchEnd === 'function') root.addEventListener('touchend', _onTouchEnd, true);
+  if (typeof _onClick === 'function') root.addEventListener('click', _onClick, { passive: true });
+  if (typeof _onTouchMove === 'function') {
+    root.addEventListener('touchmove', _onTouchMove, { passive: true });
+  }
+
+  return () => {
+    if (typeof _onTouchEnd === 'function') root.removeEventListener('touchend', _onTouchEnd, true);
+    if (typeof _onClick === 'function') root.removeEventListener('click', _onClick);
+    if (typeof _onTouchMove === 'function') root.removeEventListener('touchmove', _onTouchMove);
+  };
+}
+
 export function getFolderChoices(app: App) {
   const folderList: IChoices.Choice[] = [];
 
@@ -147,6 +174,8 @@ export function createSearchSelect({
           c.setChoiceByValue(value);
         }
 
+        const unbindOwnerDocument = bindChoicesToOwnerDocument(c, el);
+
         const onChange = (e: CustomEvent) => {
           const val = e.detail.value;
 
@@ -166,6 +195,7 @@ export function createSearchSelect({
         el.addEventListener('change', onChange);
 
         manager.cleanupFns.push(() => {
+          unbindOwnerDocument();
           c.destroy();
           el.removeEventListener('change', onChange);
         });

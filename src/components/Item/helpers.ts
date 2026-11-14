@@ -54,6 +54,7 @@ export function constructDatePicker(
           picker = flatpickr(input, {
             locale: getDefaultLocale(stateManager),
             defaultDate: date,
+            now: new Date(),
             inline: true,
             onChange: (dates) => {
               onChange(dates);

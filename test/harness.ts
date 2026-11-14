@@ -1,5 +1,7 @@
 // Test harness: exposes the real Kanban parser/serializer with a lightweight
 // StateManager stand-in. Bundled by esbuild in test/run-tests.mjs.
+import { defaults as datePickerDefaults } from 'src/components/Editor/flatpickr/types/options';
+import { getBoardModifiers } from 'src/helpers/boardModifiers';
 import { resolveLocale } from 'src/lang/helpers';
 import { ListFormat } from 'src/parsers/List';
 import { boardToMd } from 'src/parsers/formats/list';
@@ -9,6 +11,7 @@ import {
   refreshTasksStatusSettings,
 } from 'src/parsers/helpers/inlineMetadata';
 import {
+  bindChoicesToOwnerDocument,
   defaultDateTrigger,
   defaultMetadataPosition,
   defaultTimeTrigger,
@@ -57,10 +60,27 @@ export function mdToBoard(sm: any, md: string) {
   return sm.parser.mdToBoard(md.trim());
 }
 
+/**
+ * Board modifiers wired to the stand-in StateManager: setState applies the
+ * updater synchronously, and the view stub ignores collapse-state bookkeeping.
+ */
+export function createBoardModifiers(sm: any) {
+  sm.setState = (updater: any) => {
+    sm.state = typeof updater === 'function' ? updater(sm.state) : updater;
+  };
+  const view: any = {
+    getViewState: (): any[] => [],
+    setViewState: (): void => undefined,
+  };
+  return getBoardModifiers(view, sm);
+}
+
 export {
   boardToMd,
   resolveLocale,
   getTaskStatusDone,
   getTaskStatusPreDone,
   refreshTasksStatusSettings,
+  bindChoicesToOwnerDocument,
+  datePickerDefaults,
 };
