@@ -20,6 +20,7 @@ import { getParentWindow } from './dnd/util/getWindow';
 import { hasFrontmatterKey } from './helpers';
 import { t } from './lang/helpers';
 import { basicFrontmatter, frontmatterKey } from './parsers/common';
+import { refreshTasksStatusSettings } from './parsers/helpers/inlineMetadata';
 
 interface WindowRegistry {
   viewMap: Map<string, KanbanView>;
@@ -133,6 +134,16 @@ export default class KanbanPlugin extends Plugin {
     this.registerMonkeyPatches();
     this.registerCommands();
     this.registerEvents();
+
+    // Keep a fallback copy of the Tasks plugin's status settings (used to detect
+    // "done" cards for Complete lanes) in case its live settings aren't reachable.
+    const refreshTasks = debounce(() => refreshTasksStatusSettings(), 1000, true);
+    this.app.workspace.onLayoutReady(() => refreshTasks());
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', (leaf) => {
+        if (leaf?.view instanceof KanbanView) refreshTasks();
+      })
+    );
 
     // Mount an empty component to start; views will be added as we go
     this.mount(window);

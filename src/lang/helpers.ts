@@ -19,7 +19,7 @@ import ro from './locale/ro';
 import ru from './locale/ru';
 import sq from './locale/sq';
 import tr from './locale/tr';
-import uk from './locale/tr';
+import uk from './locale/uk';
 import zhCN from './locale/zh-cn';
 import zhTW from './locale/zh-tw';
 
@@ -50,13 +50,35 @@ const localeMap: { [k: string]: Partial<Lang> } = {
   zh: zhCN,
 };
 
+const localeKeysLower = new Map(Object.keys(localeMap).map((k) => [k.toLowerCase(), k]));
+
+/**
+ * Resolve an Obsidian language code to a Kanban locale.
+ * Tries an exact match, then a case-insensitive match (accepting `_` for `-`),
+ * then the base language (e.g. `en-GB` -> `en`, `zh-CN` -> `zh`).
+ * Falls back to English for empty or unknown codes.
+ */
+export function resolveLocale(code: string | null | undefined): Partial<Lang> {
+  if (!code) return en;
+  if (localeMap[code]) return localeMap[code];
+
+  const normalized = code.replace(/_/g, '-').toLowerCase();
+  const exactKey = localeKeysLower.get(normalized);
+  if (exactKey) return localeMap[exactKey];
+
+  const baseKey = localeKeysLower.get(normalized.split('-')[0]);
+  if (baseKey) return localeMap[baseKey];
+
+  return en;
+}
+
 const lang = window.localStorage.getItem('language');
-const locale = localeMap[lang || 'en'];
+const locale = resolveLocale(lang);
+
+if (lang && locale === en && !lang.toLowerCase().startsWith('en')) {
+  console.warn(`Kanban: no translation for "${lang}", using English`);
+}
 
 export function t(str: keyof typeof en): string {
-  if (!locale) {
-    console.error('Error: kanban locale not found', lang);
-  }
-
-  return (locale && locale[str]) || en[str];
+  return locale[str] || en[str];
 }

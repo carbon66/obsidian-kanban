@@ -154,7 +154,15 @@ export function hydrateBoard(stateManager: StateManager, board: Board): Board {
 function opAffectsHydration(op: Op) {
   return (
     (op.op === 'add' || op.op === 'replace') &&
-    ['title', 'titleRaw', 'dateStr', 'timeStr', /\d$/, /\/fileAccessor\/.+$/].some((postFix) => {
+    [
+      'title',
+      'titleRaw',
+      'titleSearchRaw',
+      'dateStr',
+      'timeStr',
+      /\d$/,
+      /\/fileAccessor\/.+$/,
+    ].some((postFix) => {
       if (typeof postFix === 'string') {
         return op.path.last().toString().endsWith(postFix);
       } else {

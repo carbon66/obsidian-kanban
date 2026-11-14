@@ -176,15 +176,44 @@ export function getTasksPlugin() {
   return (app as any).plugins.plugins['obsidian-tasks-plugin'];
 }
 
+// Primary source: the live settings object held by the Tasks editor suggester.
+// This only exists while Tasks' "auto-suggest" option is enabled, and it relies
+// on Tasks internals, so it is treated as best-effort.
 function getTasksPluginSettings() {
-  return (app as any).workspace.editorSuggest.suggests.find(
-    (s: any) => s.settings && s.settings.taskFormat
-  )?.settings;
+  try {
+    return (app as any).workspace.editorSuggest?.suggests?.find(
+      (s: any) => s.settings && s.settings.taskFormat
+    )?.settings;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+// Fallback: Tasks' saved settings (its data.json), read through the public
+// Plugin.loadData() API. Refreshed on layout ready and when a board is focused.
+let cachedTasksStatusSettings: any = null;
+
+export async function refreshTasksStatusSettings() {
+  const plugin = getTasksPlugin();
+  if (!plugin?.loadData) {
+    cachedTasksStatusSettings = null;
+    return;
+  }
+
+  try {
+    const data = await plugin.loadData();
+    cachedTasksStatusSettings = data?.statusSettings ?? null;
+  } catch (e) {
+    console.warn('Kanban: unable to read Tasks plugin settings', e);
+  }
+}
+
+function getTasksStatusSettings() {
+  return getTasksPluginSettings()?.statusSettings ?? cachedTasksStatusSettings;
 }
 
 export function getTaskStatusDone(): string {
-  const settings = getTasksPluginSettings();
-  const statuses = settings?.statusSettings;
+  const statuses = getTasksStatusSettings();
   if (!statuses) return 'x';
 
   let done = statuses.coreStatuses?.find((s: any) => s.type === 'DONE');
@@ -195,8 +224,7 @@ export function getTaskStatusDone(): string {
 }
 
 export function getTaskStatusPreDone(): string {
-  const settings = getTasksPluginSettings();
-  const statuses = settings?.statusSettings;
+  const statuses = getTasksStatusSettings();
   if (!statuses) return ' ';
 
   const done = getTaskStatusDone();
