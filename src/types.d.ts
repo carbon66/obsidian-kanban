@@ -1,6 +1,14 @@
 type HTMLAttributes<T extends EventTarget> = import('preact/compat').HTMLAttributes<T> &
   AriaAttributes;
 
+/**
+ * Obsidian still exposes the global `app` at runtime, but its API typings
+ * dropped the declaration (the global is deprecated in favor of `this.app`).
+ * Kept here until the remaining global references are migrated (roadmap M5).
+ */
+// eslint-disable-next-line no-var
+declare var app: import('obsidian').App;
+
 declare const Fragment: import('preact').FunctionComponent<Record<string, never>>;
 
 declare function h(
