@@ -1,6 +1,29 @@
-# Obsidian Kanban Plugin
+# Kanban Z
 
-**The Kanban plugin is looking for new maintainers.** Interested? [Read more here.](https://github.com/mgmeyers/obsidian-kanban/blob/main/MAINTAINERS.md)
+**Kanban Z** is a fork of the [Obsidian Kanban plugin](https://github.com/mgmeyers/obsidian-kanban) by mgmeyers, which is no longer actively maintained (last upstream release: 2.0.51, May 2024).
+
+- Plugin id: `kanban-z` (installs separately from the original `obsidian-kanban`, so upstream updates never overwrite it)
+- Boards keep the same `kanban-plugin: board` frontmatter, so existing boards open unchanged. Enable only one of Kanban / Kanban Z at a time.
+- Roadmap: stability fixes first, then follow-up tracking features (touchpoint logging, staleness indicators, subtask progress, alternate checkbox support).
+- License: GPL-3.0, same as upstream.
+
+### Install
+
+- **BRAT:** add `carbon66/obsidian-kanban` as a beta plugin.
+- **Manual:** download `main.js`, `manifest.json`, and `styles.css` from the latest [release](https://github.com/carbon66/obsidian-kanban/releases) into `<vault>/.obsidian/plugins/kanban-z/`, then enable **Kanban Z** in Community plugins.
+
+### Build
+
+```bash
+yarn install
+yarn build
+```
+
+---
+
+*Original README follows.*
+
+# Obsidian Kanban Plugin
 
 ---
 
