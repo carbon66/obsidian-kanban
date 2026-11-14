@@ -1,7 +1,7 @@
 {
 	"id": "kanban-z",
 	"name": "Kanban Z",
-	"version": "2.0.54",
+	"version": "2.1.0",
 	"minAppVersion": "1.0.0",
 	"description": "Create markdown-backed Kanban boards in Obsidian. A maintained fork of the mgmeyers Kanban plugin.",
 	"author": "Wyatt Zaorski (fork of mgmeyers' Kanban)",
