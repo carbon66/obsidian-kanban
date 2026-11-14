@@ -287,3 +287,123 @@ describe('Tasks plugin status detection (Complete lanes)', () => {
     });
   });
 });
+
+describe('archive order (#1243)', () => {
+  const md = [
+    '---',
+    '',
+    'kanban-plugin: board',
+    '',
+    '---',
+    '',
+    '## One',
+    '',
+    '- [ ] A1',
+    '- [ ] A2',
+    '',
+    '',
+    '',
+    '## Two',
+    '',
+    '- [ ] B1',
+    '- [ ] B2',
+    '',
+    '',
+    '',
+    '## Three',
+    '',
+    '- [ ] C1',
+    '',
+    '',
+    '',
+    '%% kanban:settings',
+    '```',
+    '{"kanban-plugin":"board"}',
+    '```',
+    '%%',
+  ].join('\n');
+
+  const archiveTitles = (sm) => sm.state.data.archive.map((i) => i.data.titleRaw);
+
+  test('every archive action appends to the bottom, in the order performed', () => {
+    const sm = h.createStateManager();
+    sm.state = h.mdToBoard(sm, md);
+    const mods = h.createBoardModifiers(sm);
+
+    mods.archiveItem([0, 0]); // A1 (single card)
+    mods.archiveLaneItems([1]); // B1, B2 (lane cards)
+    mods.archiveItem([0, 0]); // A2 (single card)
+    mods.archiveLane([2]); // C1 (whole lane)
+
+    assert.deepEqual(archiveTitles(sm), ['A1', 'B1', 'B2', 'A2', 'C1']);
+  });
+
+  test('archive order survives a save and reload', () => {
+    const sm = h.createStateManager();
+    sm.state = h.mdToBoard(sm, md);
+    const mods = h.createBoardModifiers(sm);
+    mods.archiveItem([0, 0]);
+    mods.archiveLaneItems([1]);
+
+    const reloaded = h.mdToBoard(h.createStateManager(), h.boardToMd(sm.state));
+    assert.deepEqual(
+      reloaded.data.archive.map((i) => i.data.titleRaw),
+      ['A1', 'B1', 'B2']
+    );
+  });
+});
+
+describe('date picker "today" (#1236)', () => {
+  test('each picker gets the current time, not the plugin load time', async () => {
+    const first = { ...h.datePickerDefaults }.now.getTime();
+    await new Promise((r) => setTimeout(r, 15));
+    const second = { ...h.datePickerDefaults }.now.getTime();
+    assert.ok(second > first, `expected a fresh date, got ${first} then ${second}`);
+  });
+});
+
+describe('settings dropdowns in a pop-out window (#1247)', () => {
+  const fakeTarget = () => {
+    const calls = [];
+    return {
+      calls,
+      addEventListener: (type, fn) => calls.push(['add', type, fn]),
+      removeEventListener: (type, fn) => calls.push(['remove', type, fn]),
+    };
+  };
+  const fakeChoices = () => ({ _onClick() {}, _onTouchEnd() {}, _onTouchMove() {} });
+
+  test('listeners are mirrored onto a separate window document and removed on cleanup', () => {
+    const prevDocument = globalThis.document;
+    globalThis.document = { documentElement: fakeTarget() };
+    try {
+      const popoutRoot = fakeTarget();
+      const choices = fakeChoices();
+      const cleanup = h.bindChoicesToOwnerDocument(choices, {
+        ownerDocument: { documentElement: popoutRoot },
+      });
+
+      const added = popoutRoot.calls.filter((c) => c[0] === 'add');
+      assert.deepEqual(added.map((c) => c[1]).sort(), ['click', 'touchend', 'touchmove']);
+      assert.equal(added.find((c) => c[1] === 'click')[2], choices._onClick);
+
+      cleanup();
+      const removed = popoutRoot.calls.filter((c) => c[0] === 'remove');
+      assert.deepEqual(removed.map((c) => c[1]).sort(), ['click', 'touchend', 'touchmove']);
+    } finally {
+      globalThis.document = prevDocument;
+    }
+  });
+
+  test('does nothing in the main window (Choices already handles it)', () => {
+    const prevDocument = globalThis.document;
+    const mainRoot = fakeTarget();
+    globalThis.document = { documentElement: mainRoot };
+    try {
+      h.bindChoicesToOwnerDocument(fakeChoices(), { ownerDocument: globalThis.document })();
+      assert.equal(mainRoot.calls.length, 0);
+    } finally {
+      globalThis.document = prevDocument;
+    }
+  });
+});
