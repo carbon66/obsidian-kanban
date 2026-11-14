@@ -1,13 +1,20 @@
 import update from 'immutability-helper';
-import { Menu, Platform, TFile, TFolder } from 'obsidian';
+import { Menu, Notice, Platform, TFile, TFolder } from 'obsidian';
 import { Dispatch, StateUpdater, useCallback } from 'preact/hooks';
 import { StateManager } from 'src/StateManager';
 import { Path } from 'src/dnd/types';
 import { moveEntity } from 'src/dnd/util/data';
+import { MoveToBoardModal, getOtherBoardLanes, moveItemToBoard } from 'src/helpers/crossBoard';
+import { getCurrentStatusOptions, setItemStatus } from 'src/helpers/itemStatus';
 import { t } from 'src/lang/helpers';
 
 import { BoardModifiers } from '../../helpers/boardModifiers';
-import { applyTemplate, escapeRegExpStr, generateInstanceId } from '../helpers';
+import {
+  applyTemplate,
+  escapeRegExpStr,
+  generateInstanceId,
+  maybeCompleteForMove,
+} from '../helpers';
 import { EditState, Item } from '../types';
 import {
   constructDatePicker,
@@ -265,6 +272,33 @@ export function useItemMenu({
 
       menu.addSeparator();
 
+      const addStatusOptions = (menu: Menu) => {
+        for (const status of getCurrentStatusOptions()) {
+          menu.addItem((mi) =>
+            mi
+              .setTitle(`[${status.symbol}]  ${status.name}`)
+              .setChecked(item.data.checkChar === status.symbol)
+              .onClick(() => {
+                boardModifiers.replaceItem(path, setItemStatus(stateManager, item, status.symbol));
+              })
+          );
+        }
+      };
+
+      if (Platform.isPhone) {
+        addStatusOptions(menu);
+        menu.addSeparator();
+      } else {
+        menu.addItem((mi) => {
+          const submenu = (mi as any)
+            .setTitle(t('Set status'))
+            .setIcon('lucide-square-check')
+            .setSubmenu();
+
+          addStatusOptions(submenu);
+        });
+      }
+
       const addMoveToOptions = (menu: Menu) => {
         const lanes = stateManager.state.children;
         if (lanes.length <= 1) return;
@@ -277,7 +311,33 @@ export function useItemMenu({
               .onClick(() => {
                 if (path[0] === i) return;
                 stateManager.setState((boardData) => {
-                  return moveEntity(boardData, path, [i, 0]);
+                  const destination = [i, 0];
+                  // Apply Complete-lane behavior, same as drag and drop
+                  return moveEntity(
+                    boardData,
+                    path,
+                    destination,
+                    (entity) =>
+                      maybeCompleteForMove(
+                        stateManager,
+                        boardData,
+                        path,
+                        stateManager,
+                        boardData,
+                        destination,
+                        entity as Item
+                      ).next,
+                    (entity) =>
+                      maybeCompleteForMove(
+                        stateManager,
+                        boardData,
+                        path,
+                        stateManager,
+                        boardData,
+                        destination,
+                        entity as Item
+                      ).replacement
+                  );
                 });
               })
           );
@@ -296,6 +356,23 @@ export function useItemMenu({
           addMoveToOptions(submenu);
         });
       }
+
+      menu.addItem((mi) =>
+        mi
+          .setIcon('lucide-folder-kanban')
+          .setTitle(t('Move to board...'))
+          .onClick(async () => {
+            const targets = await getOtherBoardLanes(stateManager.app, stateManager.file.path);
+            if (!targets.length) {
+              new Notice(t('No other Kanban boards found'));
+              return;
+            }
+
+            new MoveToBoardModal(stateManager.app, targets, (target) => {
+              moveItemToBoard(stateManager, boardModifiers, item, target);
+            }).open();
+          })
+      );
 
       menu.showAtPosition(coordinates);
     },
