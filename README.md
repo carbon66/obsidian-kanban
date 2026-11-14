@@ -7,6 +7,13 @@
 - Roadmap: stability fixes first, then follow-up tracking features (touchpoint logging, staleness indicators, subtask progress, alternate checkbox support).
 - License: GPL-3.0, same as upstream.
 
+### What's different from upstream
+
+- **Card statuses** (2.1.0): right-click a card → **Set status** for `[/]` In progress, `[?]` Question, `[-]` Cancelled, `[D]` Event, and any statuses defined in the Tasks plugin. Alternate-checkbox themes/snippets now style card checkboxes.
+- **Move to board...** (2.1.0): send a card (with its notes) to any list on another Kanban board.
+- **Complete lanes remember status** (2.1.0): a `[?]` card dragged into a Complete list and back out returns as `[?]`. "Move to list" now applies Complete-list behavior too.
+- **Stability fixes** (2.0.53 to 2.0.54): regional languages (#1248), stale search (#1246), Tasks done-status detection, archive order (#1243), date picker "today" (#1236), pop-out Settings dropdowns (#1247).
+
 ### Install
 
 - **BRAT:** add `carbon66/obsidian-kanban` as a beta plugin.

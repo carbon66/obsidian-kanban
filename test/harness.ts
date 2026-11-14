@@ -1,10 +1,13 @@
 // Test harness: exposes the real Kanban parser/serializer with a lightweight
 // StateManager stand-in. Bundled by esbuild in test/run-tests.mjs.
 import { defaults as datePickerDefaults } from 'src/components/Editor/flatpickr/types/options';
+import { maybeCompleteForMove } from 'src/components/helpers';
 import { getBoardModifiers } from 'src/helpers/boardModifiers';
+import { findItemPath, getLaneTitles, insertItemMdIntoLane } from 'src/helpers/crossBoard';
+import { getStatusOptions, setItemStatus, stripDoneDate } from 'src/helpers/itemStatus';
 import { resolveLocale } from 'src/lang/helpers';
 import { ListFormat } from 'src/parsers/List';
-import { boardToMd } from 'src/parsers/formats/list';
+import { boardToMd, itemToMd } from 'src/parsers/formats/list';
 import {
   getTaskStatusDone,
   getTaskStatusPreDone,
@@ -52,6 +55,9 @@ export function createStateManager(globalSettings: Record<string, any> = {}) {
   };
 
   sm.parser = new ListFormat(sm);
+  sm.getNewItem = (content: string, checkChar: string, forceEdit?: boolean) =>
+    sm.parser.newItem(content, checkChar, forceEdit);
+  sm.updateItemContent = (item: any, content: string) => sm.parser.updateItemContent(item, content);
   return sm;
 }
 
@@ -83,4 +89,12 @@ export {
   refreshTasksStatusSettings,
   bindChoicesToOwnerDocument,
   datePickerDefaults,
+  insertItemMdIntoLane,
+  getLaneTitles,
+  findItemPath,
+  getStatusOptions,
+  setItemStatus,
+  stripDoneDate,
+  maybeCompleteForMove,
+  itemToMd,
 };
