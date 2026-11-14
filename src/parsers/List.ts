@@ -16,14 +16,12 @@ import {
 import { hydrateBoard, hydratePostOp } from './helpers/hydrateBoard';
 import { parseMarkdown } from './parseMarkdown';
 
-const generatedKeys: Array<string | number> = [
-  'id',
-  'date',
-  'time',
-  'titleSearch',
-  'titleSearchRaw',
-  'file',
-];
+// Keys recomputed by hydration and excluded from the re-parse diff.
+// Note: `titleSearchRaw` must NOT be listed here. It comes from the parse (not
+// hydration) and `getSearchValue` builds `titleSearch` from it, so excluding it
+// left cards searching by the text of whichever card previously sat at their
+// position (#1246).
+const generatedKeys: Array<string | number> = ['id', 'date', 'time', 'titleSearch', 'file'];
 
 export class ListFormat implements BaseFormat {
   stateManager: StateManager;
