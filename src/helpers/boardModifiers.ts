@@ -153,8 +153,10 @@ export function getBoardModifiers(view: KanbanView, stateManager: StateManager):
           return update<Board>(removeEntity(boardData, path), {
             data: {
               settings: { 'list-collapse': { $set: op(collapseState) } },
+              // Always append to the bottom so the archive stays chronological and
+              // max-archive-size (which keeps the last N) trims the oldest (#1243).
               archive: {
-                $unshift: stateManager.getSetting('archive-with-date')
+                $push: stateManager.getSetting('archive-with-date')
                   ? items.map(appendArchiveDate)
                   : items,
               },
@@ -182,7 +184,7 @@ export function getBoardModifiers(view: KanbanView, stateManager: StateManager):
             {
               data: {
                 archive: {
-                  $unshift: stateManager.getSetting('archive-with-date')
+                  $push: stateManager.getSetting('archive-with-date')
                     ? items.map(appendArchiveDate)
                     : items,
                 },
