@@ -946,6 +946,24 @@ button.kanban-plugin__new-item-button {
   }
 }
 
+// The checkbox wrapper carries `task-list-item` / `is-checked` / `data-task`
+// so alternate-checkbox themes and snippets (Minimal, SlRvb, Things...) can
+// style card statuses like [?] or [/]. Neutralize list-item layout rules.
+.kanban-plugin__item-prefix-button-wrapper.task-list-item {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+  text-decoration: none;
+  color: inherit;
+  background: none;
+
+  &::before,
+  &::marker {
+    content: none;
+  }
+}
+
 .kanban-plugin__item-prefix-button-wrapper {
   flex-direction: column;
 }

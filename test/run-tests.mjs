@@ -407,3 +407,333 @@ describe('settings dropdowns in a pop-out window (#1247)', () => {
     }
   });
 });
+
+// ---- 2.1.0 features ---------------------------------------------------------
+const featureBoard = [
+  '---',
+  '',
+  'kanban-plugin: board',
+  '',
+  '---',
+  '',
+  '## To Discuss',
+  '',
+  '- [?] Ask John about routing ➕ 2026-11-03',
+  '- [ ] Second card',
+  '',
+  '',
+  '',
+  '## Waiting (5)',
+  '',
+  '',
+  '',
+  '',
+  '## Closed',
+  '',
+  '**Complete**',
+  '- [x] Old card ✅ 2026-11-01',
+  '',
+  '',
+  '',
+  '***',
+  '',
+  '## Archive',
+  '',
+  '- [x] Archived ✅ 2026-10-01',
+  '',
+  '%% kanban:settings',
+  '```',
+  '{"kanban-plugin":"board"}',
+  '```',
+  '%%',
+].join('\n');
+
+const lanesOf = (md) =>
+  h.mdToBoard(h.createStateManager(), md).children.map((l) => ({
+    title: l.data.title,
+    items: l.children.map((i) => `[${i.data.checkChar}] ${i.data.titleRaw}`),
+  }));
+
+describe('move card to another board (F2)', () => {
+  test('lane titles are read in order, ignoring max-items suffix and the archive', () => {
+    assert.deepEqual(h.getLaneTitles(featureBoard), ['To Discuss', 'Waiting', 'Closed']);
+  });
+
+  test('appends to the end of a lane that already has cards', () => {
+    const out = h.insertItemMdIntoLane(featureBoard, 0, 'To Discuss', '- [ ] Moved card');
+    assert.deepEqual(lanesOf(out)[0].items, [
+      '[?] Ask John about routing ➕ 2026-11-03',
+      '[ ] Second card',
+      '[ ] Moved card',
+    ]);
+  });
+
+  test('inserts into an empty lane (with a max-items limit in its heading)', () => {
+    const out = h.insertItemMdIntoLane(featureBoard, 1, 'Waiting', '- [/] Moved card');
+    const lanes = lanesOf(out);
+    assert.deepEqual(lanes[1].items, ['[/] Moved card']);
+    assert.equal(lanes[0].items.length, 2);
+    assert.equal(lanes[2].items.length, 1);
+  });
+
+  test('inserts after existing cards in a Complete lane and leaves the archive alone', () => {
+    const out = h.insertItemMdIntoLane(featureBoard, 2, 'Closed', '- [x] Moved ✅ 2026-11-14');
+    const board = h.mdToBoard(h.createStateManager(), out);
+    assert.deepEqual(
+      board.children[2].children.map((i) => i.data.titleRaw),
+      ['Old card ✅ 2026-11-01', 'Moved ✅ 2026-11-14']
+    );
+    assert.equal(board.children[2].data.shouldMarkItemsComplete, true);
+    assert.deepEqual(
+      board.data.archive.map((i) => i.data.titleRaw),
+      ['Archived ✅ 2026-10-01']
+    );
+  });
+
+  test('multi-line cards keep their notes', () => {
+    const sm = h.createStateManager();
+    const source = h.mdToBoard(
+      sm,
+      featureBoard.replace(
+        '- [ ] Second card',
+        '- [ ] Second card\n    - 2026-11-14: touchpoint note\n    - [ ] sub-step'
+      )
+    );
+    const md = h.itemToMd(source.children[0].children[1]);
+    const out = h.insertItemMdIntoLane(featureBoard, 1, 'Waiting', md);
+    assert.deepEqual(lanesOf(out)[1].items, [
+      '[ ] Second card\n- 2026-11-14: touchpoint note\n- [ ] sub-step',
+    ]);
+  });
+
+  test('Windows line endings are preserved', () => {
+    const crlf = featureBoard.replace(/\n/g, '\r\n');
+    const out = h.insertItemMdIntoLane(crlf, 0, 'To Discuss', '- [ ] Moved card');
+    assert.ok(!/[^\r]\n/.test(out), 'found a bare \\n');
+  });
+
+  test('refuses to write if the lane was renamed since the picker opened', () => {
+    assert.throws(() => h.insertItemMdIntoLane(featureBoard, 0, 'Old Name', '- [ ] x'), /changed/);
+    assert.throws(() => h.insertItemMdIntoLane(featureBoard, 9, 'Nope', '- [ ] x'), /not found/);
+  });
+
+  test('cards are located by id, not by a possibly stale path', () => {
+    const board = h.mdToBoard(h.createStateManager(), featureBoard);
+    const id = board.children[0].children[1].id;
+    assert.deepEqual(h.findItemPath(board, id), [0, 1]);
+    assert.equal(h.findItemPath(board, 'missing'), null);
+  });
+});
+
+describe('card statuses (F1)', () => {
+  test('status menu merges Tasks statuses and lists Done last', () => {
+    const options = h.getStatusOptions(
+      {
+        coreStatuses: [{ symbol: 'x', name: 'Done' }],
+        customStatuses: [{ symbol: '>', name: 'Moved to Board' }],
+      },
+      'x'
+    );
+    assert.equal(options.at(-1).symbol, 'x');
+    assert.equal(options.find((o) => o.symbol === '>').name, 'Moved to Board');
+    assert.ok(options.some((o) => o.symbol === '?'));
+    assert.equal(new Set(options.map((o) => o.symbol)).size, options.length);
+  });
+
+  test('done dates are stripped from the first line only', () => {
+    assert.equal(
+      h.stripDoneDate('Card ➕ 2026-11-03 ✅ 2026-11-14\n    - note ✅ 2026-01-01'),
+      'Card ➕ 2026-11-03\n    - note ✅ 2026-01-01'
+    );
+  });
+
+  test('setting a status rewrites the checkbox and keeps the text', () => {
+    const sm = h.createStateManager();
+    const board = h.mdToBoard(sm, featureBoard);
+    const [next] = h.setItemStatus(sm, board.children[0].children[1], '/');
+    assert.equal(next.data.checkChar, '/');
+    assert.equal(next.data.titleRaw, 'Second card');
+  });
+
+  test('moving a card out of Done removes its done date', () => {
+    const sm = h.createStateManager();
+    const board = h.mdToBoard(sm, featureBoard);
+    const [next] = h.setItemStatus(sm, board.children[2].children[0], '?');
+    assert.equal(next.data.checkChar, '?');
+    assert.equal(next.data.titleRaw, 'Old card');
+  });
+});
+
+describe('Complete lanes keep the previous status (F3)', () => {
+  test('a [?] card dragged into Closed and back out is [?] again', () => {
+    const sm = h.createStateManager();
+    const board = h.mdToBoard(sm, featureBoard);
+    const card = board.children[0].children[0]; // [?]
+
+    const intoClosed = h.maybeCompleteForMove(sm, board, [0, 0], sm, board, [2, 0], card).next;
+    assert.equal(intoClosed.data.checkChar, 'x');
+
+    const backOut = h.maybeCompleteForMove(sm, board, [2, 0], sm, board, [0, 0], intoClosed).next;
+    assert.equal(backOut.data.checkChar, '?');
+    assert.equal(backOut.data.checked, true);
+  });
+
+  test('a plain [ ] card still comes back as [ ]', () => {
+    const sm = h.createStateManager();
+    const board = h.mdToBoard(sm, featureBoard);
+    const card = board.children[0].children[1]; // [ ]
+
+    const intoClosed = h.maybeCompleteForMove(sm, board, [0, 1], sm, board, [2, 0], card).next;
+    const backOut = h.maybeCompleteForMove(sm, board, [2, 0], sm, board, [0, 0], intoClosed).next;
+    assert.equal(backOut.data.checkChar, ' ');
+  });
+
+  test('a card that was already done does not pick up a stale status', () => {
+    const sm = h.createStateManager();
+    const board = h.mdToBoard(sm, featureBoard);
+    const done = board.children[2].children[0]; // [x] in Closed
+
+    const out = h.maybeCompleteForMove(sm, board, [2, 0], sm, board, [0, 0], done).next;
+    assert.equal(out.data.checkChar, ' ');
+  });
+});
+
+describe('status lists: cards moved in get the list status', () => {
+  const fixture = fs.readFileSync(
+    path.join(root, 'test', 'fixtures', 'status-lane-board.md'),
+    'utf8'
+  );
+  const load = () => {
+    const sm = h.createStateManager();
+    return { sm, board: h.mdToBoard(sm, fixture) };
+  };
+  const move = (sm, board, from, to, card) =>
+    h.maybeCompleteForMove(sm, board, from, sm, board, to, card).next;
+
+  test('the **Status: ?** marker is read and written back', () => {
+    const { board } = load();
+    assert.equal(board.children[1].data.autoStatus, '?');
+    assert.equal(board.children[2].data.autoStatus, '?');
+    assert.equal(board.children[0].data.autoStatus, undefined);
+    assert.ok(
+      h.boardToMd(board).includes('## 🔍 Verify & Follow-Up\n\n**Status: ?**\n- [?] Confirm')
+    );
+  });
+
+  test('a [ ] card moved into Follow-Up becomes [?], and [ ] again when moved back', () => {
+    const { sm, board } = load();
+    const card = board.children[0].children[0];
+    const inFollowUp = move(sm, board, [0, 0], [1, 0], card);
+    assert.equal(inFollowUp.data.checkChar, '?');
+    assert.equal(inFollowUp.data.titleRaw, card.data.titleRaw);
+
+    const back = move(sm, board, [1, 0], [0, 0], inFollowUp);
+    assert.equal(back.data.checkChar, ' ');
+  });
+
+  test('a [/] card moved into Follow-Up and back returns as [/]', () => {
+    const { sm, board } = load();
+    const card = board.children[0].children[1];
+    const inFollowUp = move(sm, board, [0, 1], [1, 0], card);
+    assert.equal(inFollowUp.data.checkChar, '?');
+    assert.equal(move(sm, board, [1, 0], [0, 0], inFollowUp).data.checkChar, '/');
+  });
+
+  test('a status changed by hand inside Follow-Up is kept when the card leaves', () => {
+    const { sm, board } = load();
+    const [changed] = h.setItemStatus(sm, board.children[1].children[0], '!');
+    assert.equal(move(sm, board, [1, 0], [0, 0], changed).data.checkChar, '!');
+  });
+
+  test('reordering within Follow-Up does not touch the status', () => {
+    const { sm, board } = load();
+    const [changed] = h.setItemStatus(sm, board.children[1].children[0], '/');
+    assert.equal(move(sm, board, [1, 0], [1, 1], changed).data.checkChar, '/');
+  });
+
+  test('Follow-Up -> Closed -> Follow-Up ends as [?]', () => {
+    const { sm, board } = load();
+    const card = board.children[1].children[0];
+    const closed = move(sm, board, [1, 0], [3, 0], card);
+    assert.equal(closed.data.checkChar, 'x');
+    assert.equal(move(sm, board, [3, 0], [1, 0], closed).data.checkChar, '?');
+  });
+
+  test('a done card moved into Follow-Up becomes [?] without its done date', () => {
+    const { sm, board } = load();
+    const done = board.children[3].children[0];
+    const out = move(sm, board, [3, 0], [1, 0], done);
+    assert.equal(out.data.checkChar, '?');
+    assert.equal(out.data.titleRaw, 'Done card');
+  });
+
+  test('Move to board into a status list applies the status', () => {
+    const out = h.insertItemMdIntoLane(fixture, 2, 'Empty Follow-Up', '- [ ] From another board');
+    const board = h.mdToBoard(h.createStateManager(), out);
+    assert.deepEqual(
+      board.children[2].children.map((i) => `[${i.data.checkChar}] ${i.data.titleRaw}`),
+      ['[?] From another board']
+    );
+    assert.equal(board.children[2].data.autoStatus, '?');
+  });
+});
+
+describe('status lists end to end (menu + drag + save)', () => {
+  const plainBoard = [
+    '---',
+    '',
+    'kanban-plugin: board',
+    '',
+    '---',
+    '',
+    '## Delegated',
+    '',
+    '- [ ] Pump B faults',
+    '- [/] Shear bolts',
+    '',
+    '',
+    '',
+    '## 🔍 Verify & Follow-Up',
+    '',
+    '- [?] Envita volumes',
+    '- [ ] Blade bolts',
+    '',
+    '',
+    '',
+    '%% kanban:settings',
+    '```',
+    '{"kanban-plugin":"board"}',
+    '```',
+    '%%',
+  ].join('\n');
+
+  test('enabling the list status, then dragging a card in, marks it [?] and saves', () => {
+    const sm = h.createStateManager();
+    sm.state = h.mdToBoard(sm, plainBoard);
+    const mods = h.createBoardModifiers(sm);
+
+    // List menu -> Set status for cards in this list -> [?]
+    mods.updateLane([1], h.withLaneStatus(sm, sm.state.children[1], '?'));
+    assert.equal(sm.state.children[1].data.autoStatus, '?');
+    assert.deepEqual(
+      sm.state.children[1].children.map((i) => i.data.checkChar),
+      ['?', '?']
+    );
+
+    // Drag "Pump B faults" onto the Follow-Up list (drop into its card area)
+    h.dragItem(sm, [0, 0], [1, 2]);
+    const followUp = sm.state.children[1].children.map(
+      (i) => `[${i.data.checkChar}] ${i.data.titleRaw}`
+    );
+    assert.ok(followUp.includes('[?] Pump B faults'), followUp.join(' | '));
+
+    const saved = h.boardToMd(sm.state);
+    assert.ok(saved.includes('## 🔍 Verify & Follow-Up\n\n**Status: ?**\n'), saved);
+    assert.ok(saved.includes('- [?] Pump B faults'));
+
+    // Drag it back out: [ ] again
+    const idx = sm.state.children[1].children.findIndex((i) => i.data.titleRaw === 'Pump B faults');
+    h.dragItem(sm, [1, idx], [0, 0]);
+    assert.equal(sm.state.children[0].children[0].data.checkChar, ' ');
+  });
+});

@@ -6,6 +6,12 @@ import { StateManager } from 'src/StateManager';
 import { Path } from 'src/dnd/types';
 import { getEntityFromPath } from 'src/dnd/util/data';
 import {
+  applyLaneStatusForMove,
+  recallStatusBeforeComplete,
+  rememberStatusBeforeComplete,
+  stripDoneDate,
+} from 'src/helpers/itemStatus';
+import {
   InlineField,
   getTaskStatusDone,
   getTaskStatusPreDone,
@@ -42,6 +48,46 @@ export function maybeCompleteForMove(
   destinationPath: Path,
   item: Item
 ): { next: Item; replacement?: Item } {
+  const result = completeForMove(
+    sourceStateManager,
+    sourceBoard,
+    sourcePath,
+    destinationStateManager,
+    destinationBoard,
+    destinationPath,
+    item
+  );
+
+  const sourceParent = getEntityFromPath(sourceBoard, sourcePath.slice(0, -1));
+  const destinationParent = getEntityFromPath(destinationBoard, destinationPath.slice(0, -1));
+  const isSameLane =
+    sourceStateManager.file === destinationStateManager.file &&
+    sourcePath.length === destinationPath.length &&
+    sourcePath.slice(0, -1).every((segment, i) => segment === destinationPath[i]);
+
+  return {
+    ...result,
+    next: applyLaneStatusForMove(
+      destinationStateManager,
+      sourceStateManager.file.path,
+      sourceParent,
+      destinationStateManager.file.path,
+      destinationParent,
+      isSameLane,
+      result.next
+    ),
+  };
+}
+
+function completeForMove(
+  sourceStateManager: StateManager,
+  sourceBoard: Board,
+  sourcePath: Path,
+  destinationStateManager: StateManager,
+  destinationBoard: Board,
+  destinationPath: Path,
+  item: Item
+): { next: Item; replacement?: Item } {
   const sourceParent = getEntityFromPath(sourceBoard, sourcePath.slice(0, -1));
   const destinationParent = getEntityFromPath(destinationBoard, destinationPath.slice(0, -1));
 
@@ -51,14 +97,28 @@ export function maybeCompleteForMove(
   // If neither the old or new lane set it complete, leave it alone
   if (!oldShouldComplete && !newShouldComplete) return { next: item };
 
-  const isComplete = item.data.checked && item.data.checkChar === getTaskStatusDone();
+  const doneSymbol = getTaskStatusDone();
+  const isComplete = item.data.checked && item.data.checkChar === doneSymbol;
 
   // If it already matches the new lane, leave it alone
   if (newShouldComplete === isComplete) return { next: item };
 
   if (newShouldComplete) {
+    // Remember e.g. [?] or [/] so moving the card back out can restore it
+    rememberStatusBeforeComplete(destinationStateManager.file.path, item, doneSymbol);
     item = update(item, { data: { checkChar: { $set: getTaskStatusPreDone() } } });
   }
+
+  const restoreStatus = (result: Item): Item => {
+    if (newShouldComplete || !result) return result;
+    const previous =
+      recallStatusBeforeComplete(sourceStateManager.file.path, result) ??
+      recallStatusBeforeComplete(destinationStateManager.file.path, result);
+    if (!previous || previous === result.data.checkChar) return result;
+    return update(result, {
+      data: { checkChar: { $set: previous }, checked: { $set: previous !== ' ' } },
+    });
+  };
 
   const updates = toggleTask(item, destinationStateManager.file);
 
@@ -75,21 +135,28 @@ export function maybeCompleteForMove(
       }
     });
 
-    return { next, replacement };
+    return { next: restoreStatus(next), replacement };
   }
 
   // It's different, update it
-  return {
-    next: update(item, {
-      data: {
-        checked: {
-          $set: newShouldComplete,
-        },
-        checkChar: {
-          $set: newShouldComplete ? getTaskStatusDone() : ' ',
-        },
+  const toggled = update(item, {
+    data: {
+      checked: {
+        $set: newShouldComplete,
       },
-    }),
+      checkChar: {
+        $set: newShouldComplete ? doneSymbol : ' ',
+      },
+    },
+  });
+
+  return {
+    next: restoreStatus(
+      // Without the Tasks plugin, also drop the done date when un-completing
+      !newShouldComplete && stripDoneDate(item.data.titleRaw) !== item.data.titleRaw
+        ? destinationStateManager.updateItemContent(toggled, stripDoneDate(item.data.titleRaw))
+        : toggled
+    ),
   };
 }
 

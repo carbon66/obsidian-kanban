@@ -16,6 +16,7 @@ import {
   LaneTemplate,
 } from 'src/components/types';
 import { laneTitleWithMaxItems } from 'src/helpers';
+import { laneStatusMarker, laneStatusRegEx } from 'src/helpers/itemStatus';
 import { defaultSort } from 'src/helpers/util';
 import { t } from 'src/lang/helpers';
 import { visit } from 'unist-util-visit';
@@ -253,6 +254,7 @@ export function astToUnhydratedBoard(
       const title = getStringFromBoundary(md, headingBoundary);
 
       let shouldMarkItemsComplete = false;
+      let autoStatus: string | undefined;
 
       const list = getNextOfType(root.children, index, 'list', (child) => {
         if (child.type === 'heading') return false;
@@ -266,6 +268,12 @@ export function astToUnhydratedBoard(
 
           if (childStr === t('Complete')) {
             shouldMarkItemsComplete = true;
+            return true;
+          }
+
+          const statusMatch = childStr.match(laneStatusRegEx);
+          if (statusMatch) {
+            autoStatus = statusMatch[1];
             return true;
           }
         }
@@ -295,6 +303,7 @@ export function astToUnhydratedBoard(
           data: {
             ...parseLaneTitle(title),
             shouldMarkItemsComplete,
+            ...(autoStatus ? { autoStatus } : {}),
           },
         });
       } else {
@@ -312,6 +321,7 @@ export function astToUnhydratedBoard(
           data: {
             ...parseLaneTitle(title),
             shouldMarkItemsComplete,
+            ...(autoStatus ? { autoStatus } : {}),
           },
         });
       }
@@ -400,7 +410,7 @@ export function reparseBoard(stateManager: StateManager, board: Board) {
   }
 }
 
-function itemToMd(item: Item) {
+export function itemToMd(item: Item) {
   return `- [${item.data.checkChar}] ${addBlockId(indentNewLines(item.data.titleRaw), item)}`;
 }
 
@@ -413,6 +423,8 @@ function laneToMd(lane: Lane) {
 
   if (lane.data.shouldMarkItemsComplete) {
     lines.push(completeString);
+  } else if (lane.data.autoStatus) {
+    lines.push(laneStatusMarker(lane.data.autoStatus));
   }
 
   lane.children.forEach((item) => {

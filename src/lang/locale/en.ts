@@ -236,6 +236,14 @@ const en = {
   'Move to top': 'Move to top',
   'Move to bottom': 'Move to bottom',
   'Move to list': 'Move to list',
+  'Move to board...': 'Move to board...',
+  'Move card to board and list...': 'Move card to board and list...',
+  'Moved card to': 'Moved card to',
+  'Could not move card': 'Could not move card',
+  'No other Kanban boards found': 'No other Kanban boards found',
+  'Set status': 'Set status',
+  'Set status for cards in this list': 'Set status for cards in this list',
+  'No automatic status': 'No automatic status',
 
   // components/Lane/LaneForm.tsx
   'Enter list title...': 'Enter list title...',

@@ -2,9 +2,10 @@ import update from 'immutability-helper';
 import { Menu, Platform } from 'obsidian';
 import { Dispatch, StateUpdater, useContext, useEffect, useMemo, useState } from 'preact/hooks';
 import { Path } from 'src/dnd/types';
+import { getCurrentStatusOptions, withLaneStatus } from 'src/helpers/itemStatus';
 import { defaultSort } from 'src/helpers/util';
 import { t } from 'src/lang/helpers';
-import { lableToName } from 'src/parsers/helpers/inlineMetadata';
+import { getTaskStatusDone, lableToName } from 'src/parsers/helpers/inlineMetadata';
 
 import { anyToString } from '../Item/MetadataTable';
 import { KanbanContext } from '../context';
@@ -152,6 +153,47 @@ export function useSettingsMenu({ setEditState, path, lane }: UseSettingsMenuPar
           .onClick(() => setConfirmAction('delete'));
       })
       .addSeparator();
+
+    // Status list: cards moved or added here get this status (e.g. Follow-Up -> [?])
+    const doneSymbol = getTaskStatusDone();
+    const setLaneStatus = (symbol?: string) => {
+      boardModifiers.updateLane(path, withLaneStatus(stateManager, lane, symbol));
+    };
+
+    const addLaneStatusOptions = (menu: Menu) => {
+      menu.addItem((mi) =>
+        mi
+          .setTitle(t('No automatic status'))
+          .setChecked(!lane.data.autoStatus)
+          .onClick(() => setLaneStatus(undefined))
+      );
+
+      for (const status of getCurrentStatusOptions()) {
+        if (status.symbol === ' ' || status.symbol === doneSymbol) continue;
+        menu.addItem((mi) =>
+          mi
+            .setTitle(`[${status.symbol}]  ${status.name}`)
+            .setChecked(lane.data.autoStatus === status.symbol)
+            .onClick(() => setLaneStatus(status.symbol))
+        );
+      }
+    };
+
+    if (Platform.isPhone) {
+      addLaneStatusOptions(menu);
+      menu.addSeparator();
+    } else {
+      menu
+        .addItem((mi) => {
+          const submenu = (mi as any)
+            .setTitle(t('Set status for cards in this list'))
+            .setIcon('lucide-square-check')
+            .setSubmenu();
+
+          addLaneStatusOptions(submenu);
+        })
+        .addSeparator();
+    }
 
     const addSortOptions = (menu: Menu) => {
       menu.addItem((item) => {
